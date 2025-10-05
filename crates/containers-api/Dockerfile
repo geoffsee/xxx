@@ -23,10 +23,10 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy the binary from builder
-COPY --from=builder /usr/src/app/target/release/xxx /app/xxx
+COPY --from=builder /usr/src/app/target/release/containers-api /app/containers-api
 
 # Expose the port
 EXPOSE 3000
 
 # Run the application
-CMD ["/app/xxx"]
+CMD ["/app/containers-api"]

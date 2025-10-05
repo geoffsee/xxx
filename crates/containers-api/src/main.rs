@@ -1,15 +1,14 @@
-use std::collections::HashMap;
-use axum::{routing::get, Json, Router};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use podman_api::opts::{ContainerListOpts, PullOpts, SocketNotifyMode, SystemdEnabled};
-use tower_http::trace::TraceLayer;
-use podman_api::Podman;
-use podman_api::opts::ContainerCreateOpts;
+use axum::{routing::get, Json, Router};
 use podman_api::models::Namespace;
+use podman_api::opts::ContainerCreateOpts;
+use podman_api::opts::{ContainerListOpts, PullOpts, SocketNotifyMode, SystemdEnabled};
+use podman_api::Podman;
 use serde::Deserialize;
 use serde_json::json;
 use tokio_stream::StreamExt;
+use tower_http::trace::TraceLayer;
 
 async fn health() -> &'static str {
     "Ok"
