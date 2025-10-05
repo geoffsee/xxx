@@ -9,8 +9,12 @@ COPY Cargo.toml Cargo.lock ./
 # Copy all workspace members
 COPY crates ./crates
 
-# Build the application
-RUN cargo build --release --package repl-api
+# Use BuildKit cache mounts for Cargo registry and target dirs
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/src/app/target \
+    cargo build --release -p repl-api && \
+    cp /usr/src/app/target/release/repl-api /tmp/repl-api
+
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -23,7 +27,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy the binary from builder
-COPY --from=builder /usr/src/app/target/release/repl-api /app/repl-api
+COPY --from=builder /tmp/repl-api /app/repl-api
 
 # Expose the port
 EXPOSE 3000
