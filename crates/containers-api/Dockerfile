@@ -3,14 +3,15 @@ FROM rust:1.90.0 as builder
 
 WORKDIR /usr/src/app
 
-# Copy manifests
+# Copy workspace manifests
 COPY Cargo.toml Cargo.lock ./
 
-# Copy source code
-COPY src ./src
+# Copy all workspace members
+COPY crates ./crates
+COPY repl-api ./repl-api
 
 # Build the application
-RUN cargo build --release
+RUN cargo build --release --manifest-path ./crates/containers-api/Cargo.toml
 
 # Runtime stage
 FROM debian:bookworm-slim

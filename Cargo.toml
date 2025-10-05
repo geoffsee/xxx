@@ -1,5 +1,5 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/containers-api",
+    "crates/containers-api", "repl-api",
 ]

@@ -1,8 +1,8 @@
 services:
   containers-api:
     build:
-      dockerfile: Dockerfile
-      context: ./crates/containers-api
+      dockerfile: crates/containers-api/Dockerfile
+      context: .
     container_name: containers-api
     ports:
       - "3001:3000"
