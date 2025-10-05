@@ -10,6 +10,17 @@ services:
       - coreos-net
     restart: unless-stopped
 
+  repl-api:
+    build:
+      dockerfile: crates/repl-api/Dockerfile
+      context: .
+    container_name: repl-api
+    ports:
+      - "3002:3000"
+    networks:
+      - coreos-net
+    restart: unless-stopped
+
   coreos:
     image: ghcr.io/geoffsee/fedora-coreos:stable
     build:
