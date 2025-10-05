@@ -8,7 +8,6 @@ COPY Cargo.toml Cargo.lock ./
 
 # Copy all workspace members
 COPY crates ./crates
-COPY repl-api ./repl-api
 
 # Build the application
 RUN cargo build --release --manifest-path ./crates/containers-api/Cargo.toml
