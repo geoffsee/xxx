@@ -1,4 +1,4 @@
-use axum::{routing::get, routing::post, Router};
+use axum::{Router, routing::get, routing::post};
 use tower_http::trace::TraceLayer;
 
 // Import handlers from other crates
@@ -13,15 +13,12 @@ async fn main() {
     let app = Router::new()
         // Health check
         .route("/healthz", get(health))
-
         // Container API routes
         .route("/api/containers/list", get(list_containers))
         .route("/api/containers/create", post(create_container))
-
         // REPL API routes
         .route("/api/repl/execute", post(execute_repl))
         .route("/api/repl/languages", get(list_languages))
-
         .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -48,7 +45,12 @@ mod tests {
         let app = Router::new().route("/healthz", get(health));
 
         let response = app
-            .oneshot(Request::builder().uri("/healthz").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/healthz")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -65,7 +67,12 @@ mod tests {
         let app = Router::new().route("/api/repl/languages", get(list_languages));
 
         let response = app
-            .oneshot(Request::builder().uri("/api/repl/languages").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/repl/languages")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

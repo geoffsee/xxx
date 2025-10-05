@@ -1,10 +1,10 @@
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
+use podman_api::Podman;
 use podman_api::models::Namespace;
 use podman_api::opts::ContainerCreateOpts;
 use podman_api::opts::{ContainerListOpts, PullOpts, SocketNotifyMode, SystemdEnabled};
-use podman_api::Podman;
 use serde::Deserialize;
 use serde_json::json;
 use tokio_stream::StreamExt;
@@ -20,9 +20,7 @@ pub async fn list_containers() -> impl IntoResponse {
     let opts = ContainerListOpts::builder().all(true).build();
     let containers = podman.containers().list(&opts).await.unwrap();
 
-    let container_strings = containers.iter().map(|container| {
-        container.names.clone()
-    });
+    let container_strings = containers.iter().map(|container| container.names.clone());
     Json(container_strings.collect::<Vec<_>>())
 }
 
@@ -69,7 +67,7 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
                         StatusCode::INTERNAL_SERVER_ERROR,
                         format!("Failed to pull image '{}': {}", payload.image, error_msg),
                     )
-                    .into_response();
+                        .into_response();
                 }
             }
             Err(e) => {
@@ -77,7 +75,7 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
                     StatusCode::INTERNAL_SERVER_ERROR,
                     format!("Failed to pull image '{}': {}", payload.image, e),
                 )
-                .into_response();
+                    .into_response();
             }
         }
     }

@@ -1,10 +1,9 @@
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
+use container_api::{create_container, health, list_containers};
 use tower_http::trace::TraceLayer;
-use container_api::{health, list_containers, create_container};
 
 #[tokio::main]
 async fn main() {
-
     dotenv::dotenv().ok();
 
     tracing_subscriber::fmt::init();
@@ -12,7 +11,10 @@ async fn main() {
     let app = Router::new()
         .route("/healthz", get(health))
         .route("/api/containers/list", get(list_containers))
-        .route("/api/containers/create", axum::routing::post(create_container))
+        .route(
+            "/api/containers/create",
+            axum::routing::post(create_container),
+        )
         .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -32,7 +34,12 @@ mod tests {
         let app = Router::new().route("/hello", get(health));
 
         let response = app
-            .oneshot(Request::builder().uri("/hello").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/hello")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -44,4 +51,3 @@ mod tests {
         assert_eq!(&body[..], b"Hello, World!");
     }
 }
-

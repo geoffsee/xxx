@@ -31,12 +31,21 @@ impl Language {
             Language::Node => vec!["node".to_string(), "-e".to_string(), code.to_string()],
             Language::Rust => {
                 // For Rust, we'd need a more complex setup with compilation
-                vec!["sh".to_string(), "-c".to_string(),
-                     format!("echo '{}' > /tmp/main.rs && rustc /tmp/main.rs -o /tmp/prog && /tmp/prog", code)]
+                vec![
+                    "sh".to_string(),
+                    "-c".to_string(),
+                    format!(
+                        "echo '{}' > /tmp/main.rs && rustc /tmp/main.rs -o /tmp/prog && /tmp/prog",
+                        code
+                    ),
+                ]
             }
             Language::Go => {
-                vec!["sh".to_string(), "-c".to_string(),
-                     format!("echo '{}' > /tmp/main.go && go run /tmp/main.go", code)]
+                vec![
+                    "sh".to_string(),
+                    "-c".to_string(),
+                    format!("echo '{}' > /tmp/main.go && go run /tmp/main.go", code),
+                ]
             }
             Language::Ruby => vec!["ruby".to_string(), "-e".to_string(), code.to_string()],
         }
@@ -88,7 +97,10 @@ impl ReplSession {
             .context("Failed to send request to containers API")?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             anyhow::bail!("Container execution failed: {}", error_text);
         }
 
@@ -97,7 +109,10 @@ impl ReplSession {
             .await
             .context("Failed to parse container response")?;
 
-        Ok(format!("Executed in container {}: {}", container_response.id, container_response.message))
+        Ok(format!(
+            "Executed in container {}: {}",
+            container_response.id, container_response.message
+        ))
     }
 
     pub fn set_variable(&mut self, key: String, value: String) {
@@ -300,9 +315,18 @@ mod tests {
 
         // Test that we can run different languages in parallel
         let languages = vec![
-            (GenericImage::new("python", "3.11-slim"), vec!["python", "-c", "print('Python')"]),
-            (GenericImage::new("node", "20-slim"), vec!["node", "-e", "console.log('Node')"]),
-            (GenericImage::new("ruby", "3.2-slim"), vec!["ruby", "-e", "puts 'Ruby'"]),
+            (
+                GenericImage::new("python", "3.11-slim"),
+                vec!["python", "-c", "print('Python')"],
+            ),
+            (
+                GenericImage::new("node", "20-slim"),
+                vec!["node", "-e", "console.log('Node')"],
+            ),
+            (
+                GenericImage::new("ruby", "3.2-slim"),
+                vec!["ruby", "-e", "puts 'Ruby'"],
+            ),
         ];
 
         for (image, cmd) in languages {
