@@ -1,0 +1,11 @@
+FROM quay.io/coreos/butane as butane
+# See the butane file for configuration changes
+ADD butane.bu /butane.bu
+# Compile to ignition
+RUN butane --pretty --strict butane.bu > /ignition.ign
+
+FROM quay.io/fedora/fedora-coreos:stable
+# Copy our generated Ignition
+COPY --from=butane /ignition.ign ignition.ign
+# Now apply it to the live filesystem, and clean it up
+RUN /usr/libexec/ignition-apply ignition.ign && rm -f ignition.ign && ostree container commit

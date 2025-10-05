@@ -1,0 +1,76 @@
+services:
+  xxx:
+    build:
+      dockerfile: xxx.Dockerfile
+      context: .
+    container_name: xxx
+    ports:
+      - "3001:3000"
+    networks:
+      - coreos-net
+    restart: unless-stopped
+
+  coreos:
+    image: ghcr.io/geoffsee/fedora-coreos:stable
+    build:
+      dockerfile: Containerfile
+      context: ./coreos
+    container_name: coreos
+    privileged: true
+    ports:
+      - "8085:8085"
+    cgroup_parent: "coreos.slice"
+    cgroup: "private"
+    tty: true
+    stdin_open: true
+    # Start systemd properly to enable podman and other services
+    command: ["/sbin/init"]
+    volumes:
+      - sandbox-data:/data/sandbox
+    networks:
+      - coreos-net
+
+  coreos-etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    container_name: coreos-etcd
+    cgroup_parent: "coreos.slice"
+    cgroup: "private"
+    networks:
+      - coreos-net
+    command: [
+      "etcd",
+      "--name", "s1",
+      "--data-dir", "/etcd-data",
+      "--advertise-client-urls", "http://0.0.0.0:2379",
+      "--listen-client-urls", "http://0.0.0.0:2379",
+      "--initial-advertise-peer-urls", "http://0.0.0.0:2380",
+      "--listen-peer-urls", "http://0.0.0.0:2380",
+      "--initial-cluster", "s1=http://0.0.0.0:2380",
+      "--initial-cluster-state", "new",
+      "--initial-cluster-token", "etcd-cluster-1"
+    ]
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd-data:/etcd-data
+    restart: unless-stopped
+
+  registry:
+    image: registry:2
+    container_name: registry
+    ports:
+      - "5001:5000"
+    networks:
+      - coreos-net
+    volumes:
+      - registry-data:/var/lib/registry
+    restart: unless-stopped
+
+volumes:
+  etcd-data:
+  sandbox-data:
+  registry-data:
+
+networks:
+  coreos-net:

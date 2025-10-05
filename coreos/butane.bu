@@ -1,0 +1,96 @@
+variant: fcos
+version: 1.5.0
+
+storage:
+  files:
+    # DNS configuration for container networking
+    - path: /etc/resolv.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          nameserver 8.8.8.8
+          nameserver 8.8.4.4
+
+    # Podman registries configuration
+    - path: /etc/containers/registries.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          unqualified-search-registries = ["docker.io"]
+
+          [[registry]]
+          location = "docker.io"
+          prefix = "docker.io"
+
+          [[registry.mirror]]
+          location = "registry-1.docker.io"
+
+          # Local registry
+          [[registry]]
+          location = "localhost:5000"
+          insecure = true
+
+          [[registry]]
+          location = "registry:5000"
+          insecure = true
+
+    - path: /etc/containers/storage.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          [storage]
+          driver = "vfs"
+          runroot = "/run/containers/storage"
+          graphroot = "/var/lib/containers/storage"
+
+    - path: /etc/containers/containers.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          [engine]
+          cgroup_manager = "cgroupfs"
+          events_logger = "file"
+          runtime = "crun"
+
+          [engine.runtimes]
+          crun = [
+            "/usr/bin/crun",
+            "--systemd-cgroup=false"
+          ]
+
+    - path: /etc/subuid
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          core:100000:65536
+          root:100000:65536
+
+    - path: /etc/subgid
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          core:100000:65536
+          root:100000:65536
+
+systemd:
+  units:
+    - name: podman.socket
+      enabled: true
+      contents: |
+        [Socket]
+        ListenStream=0.0.0.0:8085
+        SocketMode=0660
+        SocketUser=root
+        Service=podman.service
+
+        [Install]
+        WantedBy=sockets.target
+
+    - name: podman.service
+      enabled: true
