@@ -2,7 +2,8 @@ use axum::extract::Path;
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use futures_util::TryStreamExt;
+use axum::response::sse::{Event, Sse};
+use futures_util::{Stream, TryStreamExt};
 use podman_api::Podman;
 use podman_api::models::Namespace;
 use podman_api::opts::{ContainerCreateOpts, ContainerStopOpts, ContainerWaitOpts};
@@ -10,6 +11,7 @@ use podman_api::opts::{ContainerListOpts, PullOpts, SocketNotifyMode, SystemdEna
 use serde::Deserialize;
 use serde_json::json;
 use tokio_stream::StreamExt;
+use std::convert::Infallible;
 
 pub async fn health() -> &'static str {
     "Ok"
@@ -157,6 +159,123 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
         })),
     )
         .into_response()
+}
+
+pub async fn create_container_stream(
+    Json(payload): Json<CreateContainerRequest>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let stream = async_stream::stream! {
+        let podman_url = match service_registry::bootstrap::get_service_endpoint("coreos").await {
+            Some(url) => url,
+            None => std::env::var("COREOS_URL").unwrap_or("http://coreos:8085".to_string()),
+        };
+
+        let podman = match Podman::new(podman_url) {
+            Ok(p) => p,
+            Err(e) => {
+                yield Ok(Event::default().data(format!("ERROR: Failed to connect to Podman: {}", e)));
+                return;
+            }
+        };
+
+        let opts = ContainerCreateOpts::builder()
+            .image(&payload.image)
+            .command(payload.command.unwrap_or_default())
+            .net_namespace(Namespace {
+                nsmode: Some("private".to_string()),
+                value: None,
+            })
+            .pid_namespace(Namespace {
+                nsmode: Some("private".to_string()),
+                value: None,
+            })
+            .ipc_namespace(Namespace {
+                nsmode: Some("private".to_string()),
+                value: None,
+            })
+            .systemd(SystemdEnabled::False)
+            .sdnotify_mode(SocketNotifyMode::Ignore)
+            .build();
+
+        // Pull image
+        let pull_opts = PullOpts::builder().reference(&payload.image).build();
+        let images = podman.images();
+        let mut pull_stream = images.pull(&pull_opts);
+
+        while let Some(result) = pull_stream.next().await {
+            match result {
+                Ok(info) => {
+                    if let Some(error_msg) = &info.error {
+                        yield Ok(Event::default().data(format!("ERROR: Failed to pull image '{}': {}", payload.image, error_msg)));
+                        return;
+                    }
+                }
+                Err(e) => {
+                    yield Ok(Event::default().data(format!("ERROR: Failed to pull image '{}': {}", payload.image, e)));
+                    return;
+                }
+            }
+        }
+
+        // Create container
+        let created = match podman.containers().create(&opts).await {
+            Ok(c) => c,
+            Err(e) => {
+                yield Ok(Event::default().data(format!("ERROR: Failed to create container: {}", e)));
+                return;
+            }
+        };
+
+        let id = created.id.clone();
+        let container = podman.containers().get(&id);
+
+        // Attach to container to get output stream
+        use podman_api::opts::ContainerAttachOpts;
+        let attach_opts = ContainerAttachOpts::builder()
+            .stdout(true)
+            .stderr(true)
+            .build();
+
+        let mut attach_stream = match container.attach(&attach_opts).await {
+            Ok(stream) => stream,
+            Err(e) => {
+                yield Ok(Event::default().data(format!("ERROR: Failed to attach to container: {}", e)));
+                return;
+            }
+        };
+
+        // Start container after attaching
+        if let Err(e) = container.start(None).await {
+            yield Ok(Event::default().data(format!("ERROR: Container failed to start: {}", e)));
+            return;
+        }
+
+        // Stream output as it comes in
+        while let Some(chunk_result) = attach_stream.next().await {
+            match chunk_result {
+                Ok(chunk) => {
+                    let output = String::from_utf8_lossy(&chunk);
+                    if !output.is_empty() {
+                        yield Ok(Event::default().data(output.to_string()));
+                    }
+                }
+                Err(e) => {
+                    yield Ok(Event::default().data(format!("ERROR: Failed to read output: {}", e)));
+                    break;
+                }
+            }
+        }
+
+        // Wait for container to finish
+        let _ = container.wait(&ContainerWaitOpts::builder().build()).await;
+
+        // Clean up
+        let _ = container.remove().await;
+
+        yield Ok(Event::default().event("done").data("Container execution completed"));
+    };
+
+    Sse::new(stream)
 }
 
 pub async fn remove_container(Path(id): Path<String>) -> impl IntoResponse {

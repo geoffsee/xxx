@@ -1,5 +1,5 @@
 use axum::{Router, routing::get};
-use container_api::{create_container, health, list_containers, remove_container};
+use container_api::{create_container, create_container_stream, health, list_containers, remove_container};
 use service_registry::register_service;
 use tower_http::trace::TraceLayer;
 
@@ -14,11 +14,15 @@ async fn main() {
     tracing::info!("Service registered: {} ({})", service.name, service.id);
 
     let app = Router::new()
-
+        .route("/healthz", get(health))
         .route("/api/containers/list", get(list_containers))
         .route(
             "/api/containers/create",
             axum::routing::post(create_container),
+        )
+        .route(
+            "/api/containers/create/stream",
+            axum::routing::post(create_container_stream),
         )
         .route(
             "/api/containers",

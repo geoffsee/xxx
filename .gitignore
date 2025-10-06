@@ -5,3 +5,5 @@ modules.xml
 vcs.xml
 workspace.xml
 *.iml
+docs/openai-*.md
+docs/*-plan.md

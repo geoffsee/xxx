@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +118,82 @@ impl ReplClient {
             .context("Failed to parse execute REPL response")?;
 
         Ok(execute_response)
+    }
+
+    pub async fn execute_stream(
+        &self,
+        language: Language,
+        code: String,
+        dependencies: Vec<String>,
+    ) -> Result<()> {
+        let url = format!("{}/api/repl/execute/stream", self.base_url);
+        let request = ExecuteReplRequest {
+            language,
+            code,
+            dependencies,
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .context("Failed to send execute REPL stream request")?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            anyhow::bail!("Failed to execute REPL code: {}", error_text);
+        }
+
+        // Stream the response
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(chunk) => {
+                    let text = String::from_utf8_lossy(&chunk);
+                    buffer.push_str(&text);
+
+                    // Process complete SSE events
+                    while let Some(event_end) = buffer.find("\n\n") {
+                        let event: String = buffer.drain(..event_end).collect();
+                        buffer.drain(..2); // remove the separator (the +2 part)
+
+                        // Parse SSE event
+                        for line in event.lines() {
+                            if line.starts_with("data:") {
+                                let data = line.strip_prefix("data:").unwrap_or("").trim();
+                                if !data.is_empty() {
+                                    // Print the output as it streams
+                                    if data.starts_with("ERROR:") {
+                                        eprintln!("{}", data);
+                                    } else {
+                                        print!("{}", data);
+                                        use std::io::Write;
+                                        std::io::stdout().flush().unwrap();
+                                    }
+                                }
+                            } else if line.starts_with("event:") {
+                                let event_type = line.strip_prefix("event:").unwrap_or("").trim();
+                                if event_type == "done" {
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    anyhow::bail!("Stream error: {}", e);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

@@ -12,7 +12,7 @@ git clone https://github.com/geoffsee/xxx.git
 
 ./scripts/run.sh
 
-cargo run -p cli -- container create --api-url http://localhost:3001 \
-  --image python:3.11-slim \
-  --command python -c "print('Hello, World!')"
+cargo run -p cli -- repl execute \
+  --language python --api-url http://localhost:3002 \
+  --code "for i in range(100): print(f'Line {i}: Hello from Python!')"
 ```

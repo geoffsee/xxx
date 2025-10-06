@@ -1,10 +1,13 @@
 use anyhow::{Context, Result};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use axum::response::sse::{Event, Sse};
 use axum::Json;
+use futures_util::Stream;
 use serde::{Deserialize, Serialize};
 use service_registry::get_service_endpoint;
 use std::collections::HashMap;
+use std::convert::Infallible;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Language {
@@ -245,6 +248,83 @@ pub async fn execute_repl(Json(payload): Json<ExecuteReplRequest>) -> impl IntoR
 #[derive(Serialize)]
 pub struct LanguagesResponse {
     pub languages: Vec<String>,
+}
+
+pub async fn execute_repl_stream(
+    Json(payload): Json<ExecuteReplRequest>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let stream = async_stream::stream! {
+        // Try to get container-api endpoint from service registry
+        let endpoint = get_service_endpoint("container-api").await;
+        let containers_api_url = endpoint.unwrap_or_else(|| {
+            std::env::var("CONTAINERS_API_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string())
+        });
+
+        let request = CreateContainerRequest {
+            image: payload.language.container_image().to_string(),
+            command: payload
+                .language
+                .build_command_with_dependencies(&payload.code, &payload.dependencies),
+        };
+
+        let client = reqwest::Client::new();
+        let response = match client
+            .post(format!("{}/api/containers/create/stream", containers_api_url))
+            .json(&request)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                yield Ok(Event::default().data(format!("ERROR: Failed to connect to container API: {}", e)));
+                return;
+            }
+        };
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            yield Ok(Event::default().data(format!("ERROR: Container execution failed: {}", error_text)));
+            return;
+        }
+
+        // Stream the SSE events from the container API
+        let mut event_source = response.bytes_stream();
+        use futures_util::StreamExt;
+
+        while let Some(chunk_result) = event_source.next().await {
+            match chunk_result {
+                Ok(chunk) => {
+                    let text = String::from_utf8_lossy(&chunk);
+                    // Forward the SSE data
+                    for line in text.lines() {
+                        if line.starts_with("data:") {
+                            let data = line.strip_prefix("data:").unwrap_or("").trim();
+                            if !data.is_empty() {
+                                yield Ok(Event::default().data(data.to_string()));
+                            }
+                        } else if line.starts_with("event:") {
+                            // Handle event type if needed
+                            let event_type = line.strip_prefix("event:").unwrap_or("").trim();
+                            if event_type == "done" {
+                                yield Ok(Event::default().event("done").data(""));
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    yield Ok(Event::default().data(format!("ERROR: Stream error: {}", e)));
+                    break;
+                }
+            }
+        }
+    };
+
+    Sse::new(stream)
 }
 
 pub async fn list_languages() -> impl IntoResponse {

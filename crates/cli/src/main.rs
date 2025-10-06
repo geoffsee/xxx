@@ -148,15 +148,8 @@ async fn main() -> anyhow::Result<()> {
                     println!("Installing dependencies: {}", dependencies.join(", "));
                 }
                 println!("Executing {} code...", language);
-                let response = client.execute(lang, code, dependencies).await?;
-
-                if response.success {
-                    println!("✓ Success!");
-                    println!("{}", response.result);
-                } else {
-                    println!("✗ Failed!");
-                    println!("{}", response.result);
-                }
+                client.execute_stream(lang, code, dependencies).await?;
+                println!(); // Add newline after streaming output
             }
         },
     }

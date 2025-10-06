@@ -18,6 +18,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/api/repl/execute", post(repl_api::execute_repl))
+        .route("/api/repl/execute/stream", post(repl_api::execute_repl_stream))
         .route("/api/repl/languages", get(repl_api::list_languages));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
