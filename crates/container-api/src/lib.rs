@@ -2,9 +2,10 @@ use axum::extract::Path;
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use futures_util::TryStreamExt;
 use podman_api::Podman;
 use podman_api::models::Namespace;
-use podman_api::opts::{ContainerCreateOpts, ContainerStopOpts};
+use podman_api::opts::{ContainerCreateOpts, ContainerStopOpts, ContainerWaitOpts};
 use podman_api::opts::{ContainerListOpts, PullOpts, SocketNotifyMode, SystemdEnabled};
 use serde::Deserialize;
 use serde_json::json;
@@ -101,7 +102,9 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
 
     let id = created.id;
 
-    if let Err(e) = podman.containers().get(&id).start(None).await {
+    let container = podman.containers().get(&id);
+
+    if let Err(e) = container.start(None).await {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Container created but failed to start: {}", e),
@@ -109,12 +112,48 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
             .into_response();
     }
 
-    println!("Container created and started successfully '{}'", id);
+    println!("Container '{}' started, waiting for completion...", id);
+
+    // Wait for the container to finish
+    if let Err(e) = container.wait(&ContainerWaitOpts::builder().build()).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error waiting for container to finish: {}", e),
+        )
+            .into_response();
+    }
+
+    // Get container logs (stdout + stderr)
+    let logs = match container.logs(
+        &podman_api::opts::ContainerLogsOpts::builder()
+            .stdout(true)
+            .stderr(true)
+            .build()
+    ).try_collect::<Vec<_>>().await {
+        Ok(chunks) => {
+            chunks.iter()
+                .map(|chunk| String::from_utf8_lossy(chunk.as_ref()))
+                .collect::<String>()
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get container logs: {}", e),
+            )
+                .into_response();
+        }
+    };
+
+    // Clean up the container
+    let _ = container.remove().await;
+
+    println!("Container '{}' completed successfully", id);
     (
         StatusCode::OK,
         Json(json!({
             "id": id,
-            "message": "Container created and started successfully"
+            "message": "Container executed successfully",
+            "output": logs
         })),
     )
         .into_response()

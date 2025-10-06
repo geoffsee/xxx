@@ -22,7 +22,7 @@ services:
     environment:
       - SERVICE_REGISTRY_URL=http://service-registry:3003
     ports:
-      - "3002:3000"
+      - "3002:3001"
     networks:
       - coreos-net
     depends_on:
@@ -74,6 +74,12 @@ services:
     volumes:
       - etcd-data:/etcd-data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   service-registry:
     build:
@@ -81,13 +87,15 @@ services:
       context: .
     container_name: service-registry
     environment:
-      - ETCD_ENDPOINTS=coreos-etcd:2379
+      ETCD_ENDPOINTS: "coreos-etcd:2379"
+      COREOS_URL: "http://coreos:8085"
     ports:
       - "3003:3003"
     networks:
       - coreos-net
     depends_on:
-      - coreos-etcd
+      coreos-etcd:
+        condition: service_healthy
     restart: unless-stopped
 
   registry:

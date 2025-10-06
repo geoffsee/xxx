@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/container-api", "crates/repl-api", "crates/xxx", "crates/cli", "crates/service-registry", "crates/service-registry-macros"
-]
+, "crates/ui"]
 
 [workspace.dependencies]
 axum = "0.8"

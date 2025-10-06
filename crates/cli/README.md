@@ -51,7 +51,7 @@ cargo run -p cli -- container remove --id <container-id> --api-url http://localh
 ```bash
 cargo run -p cli -- repl languages
 # or with custom API URL
-cargo run -p cli -- repl languages --api-url http://localhost:3001
+cargo run -p cli -- repl languages --api-url http://localhost:3002
 ```
 
 #### Execute Code

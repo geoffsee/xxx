@@ -21,7 +21,7 @@ async fn main() {
     tracing::info!("Connecting to etcd at: {:?}", etcd_endpoints);
 
     // Create registry
-    let mut registry = service_registry::ServiceRegistry::new(etcd_endpoints, Some(10))
+    let mut registry = service_registry::ServiceRegistry::new(etcd_endpoints, Some(30))
         .await
         .expect("Failed to connect to etcd");
 

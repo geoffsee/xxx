@@ -70,6 +70,7 @@ struct CreateContainerRequest {
 struct CreateContainerResponse {
     id: String,
     message: String,
+    output: Option<String>,
 }
 
 impl ReplSession {
@@ -116,10 +117,12 @@ impl ReplSession {
             .await
             .context("Failed to parse container response")?;
 
-        Ok(format!(
-            "Executed in container {}: {}",
-            container_response.id, container_response.message
-        ))
+        Ok(container_response.output.unwrap_or_else(|| {
+            format!(
+                "Executed in container {}: {}",
+                container_response.id, container_response.message
+            )
+        }))
     }
 
     pub fn set_variable(&mut self, key: String, value: String) {
