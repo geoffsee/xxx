@@ -40,8 +40,6 @@ services:
       - "8085:8085"
     cgroup_parent: "coreos.slice"
     cgroup: "private"
-    tty: true
-    stdin_open: true
     # Start systemd properly to enable podman and other services
     command: ["/sbin/init"]
     volumes:
