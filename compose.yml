@@ -4,10 +4,14 @@ services:
       dockerfile: crates/container-api/Dockerfile
       context: .
     container_name: container-api
+    environment:
+      - SERVICE_REGISTRY_URL=http://service-registry:3003
     ports:
       - "3001:3000"
     networks:
       - coreos-net
+    depends_on:
+      - service-registry
     restart: unless-stopped
 
   repl-api:
@@ -15,10 +19,14 @@ services:
       dockerfile: crates/repl-api/Dockerfile
       context: .
     container_name: repl-api
+    environment:
+      - SERVICE_REGISTRY_URL=http://service-registry:3003
     ports:
       - "3002:3000"
     networks:
       - coreos-net
+    depends_on:
+      - service-registry
     restart: unless-stopped
 
   coreos:
@@ -65,6 +73,21 @@ services:
       - "2380:2380"
     volumes:
       - etcd-data:/etcd-data
+    restart: unless-stopped
+
+  service-registry:
+    build:
+      dockerfile: crates/service-registry/Dockerfile
+      context: .
+    container_name: service-registry
+    environment:
+      - ETCD_ENDPOINTS=coreos-etcd:2379
+    ports:
+      - "3003:3003"
+    networks:
+      - coreos-net
+    depends_on:
+      - coreos-etcd
     restart: unless-stopped
 
   registry:

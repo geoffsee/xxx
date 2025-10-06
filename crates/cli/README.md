@@ -34,6 +34,16 @@ cargo run -p cli -- container create \
   --command python -c "print('Hello, World!')"
 ```
 
+#### Remove Container
+
+```bash
+# Remove a container by ID
+cargo run -p cli -- container remove --id <container-id>
+
+# or with custom API URL
+cargo run -p cli -- container remove --id <container-id> --api-url http://localhost:3000
+```
+
 ### REPL Commands
 
 #### List Available Languages
@@ -79,6 +89,9 @@ cargo run -p cli -- container list
 
 # Create a Python container
 cargo run -p cli -- container create --image python:3.11-slim
+
+# Remove a container
+cargo run -p cli -- container remove --id abc123
 
 # List available REPL languages
 cargo run -p cli -- repl languages

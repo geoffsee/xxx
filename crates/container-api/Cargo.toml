@@ -15,3 +15,5 @@ dotenv = "0.15.0"
 serde_json = "1.0.145"
 serde = { version = "1.0.228", features = ["derive"] }
 tokio-stream = "0.1.17"
+service-registry = { path = "../service-registry" }
+hostname = "0.4"

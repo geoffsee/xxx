@@ -5,9 +5,9 @@ git clone https://github.com/geoffsee/xxx.git
 
 cargo check
 
-cargo run -p xxx
+./run.sh
 
-./cli-integration-test.sh
-
-./repl-language-test.sh
+cargo run -p cli -- container create --api-url http://localhost:3001 \
+  --image python:3.11-slim \
+  --command python -c "print('Hello, World!')"
 ```

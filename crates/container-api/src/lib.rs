@@ -1,9 +1,10 @@
+use axum::extract::Path;
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use podman_api::Podman;
 use podman_api::models::Namespace;
-use podman_api::opts::ContainerCreateOpts;
+use podman_api::opts::{ContainerCreateOpts, ContainerStopOpts};
 use podman_api::opts::{ContainerListOpts, PullOpts, SocketNotifyMode, SystemdEnabled};
 use serde::Deserialize;
 use serde_json::json;
@@ -14,7 +15,10 @@ pub async fn health() -> &'static str {
 }
 
 pub async fn list_containers() -> impl IntoResponse {
-    let podman_url = std::env::var("PODMAN_URL").unwrap_or("http://coreos:8085".to_string());
+    let podman_url = match service_registry::bootstrap::get_service_endpoint("coreos").await {
+        Some(url) => url,
+        None => std::env::var("COREOS_URL").unwrap_or("http://coreos:8085".to_string()),
+    };
     let podman = Podman::new(podman_url).unwrap();
 
     let opts = ContainerListOpts::builder().all(true).build();
@@ -31,7 +35,10 @@ pub struct CreateContainerRequest {
 }
 
 pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> impl IntoResponse {
-    let podman_url = std::env::var("PODMAN_URL").unwrap_or("http://coreos:8085".to_string());
+    let podman_url = match service_registry::bootstrap::get_service_endpoint("coreos").await {
+        Some(url) => url,
+        None => std::env::var("COREOS_URL").unwrap_or("http://coreos:8085".to_string()),
+    };
     let podman = Podman::new(podman_url).unwrap();
 
     let opts = ContainerCreateOpts::builder()
@@ -112,6 +119,60 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
     )
         .into_response()
 }
+
+pub async fn remove_container(Path(id): Path<String>) -> impl IntoResponse {
+    let podman_url = match service_registry::bootstrap::get_service_endpoint("coreos").await {
+        Some(url) => url,
+        None => std::env::var("COREOS_URL").unwrap_or("http://coreos:8085".to_string()),
+    };
+    let podman = match Podman::new(podman_url) {
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to connect to Podman service: {}", e),
+            )
+                .into_response();
+        }
+    };
+
+    let container = podman.containers().get(&id);
+
+    // Attempt to stop the container first
+    println!("Stopping container '{}'...", id);
+    match container.stop(&ContainerStopOpts::builder().build()).await {
+        Ok(_) => println!("Container '{}' stopped successfully", id),
+        Err(e) => println!(
+            "Warning: could not stop container '{}': {} (continuing with removal)",
+            id, e
+        ),
+    }
+
+    // Attempt to remove the container
+    println!("Removing container '{}'...", id);
+    match container.remove().await {
+        Ok(_) => {
+            println!("Container '{}' removed successfully", id);
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "id": id,
+                    "message": "Container removed successfully"
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            println!("Failed to remove container '{}': {}", id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to remove container '{}': {}", id, e),
+            )
+                .into_response()
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

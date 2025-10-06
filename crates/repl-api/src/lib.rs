@@ -3,6 +3,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use service_registry::get_service_endpoint;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,10 +74,16 @@ struct CreateContainerResponse {
 
 impl ReplSession {
     pub fn new(language: Language) -> Self {
+        Self::new_with_endpoint(language, None)
+    }
+
+    pub fn new_with_endpoint(language: Language, endpoint: Option<String>) -> Self {
         Self {
             language,
-            containers_api_url: std::env::var("CONTAINERS_API_URL")
-                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            containers_api_url: endpoint.unwrap_or_else(|| {
+                std::env::var("CONTAINERS_API_URL")
+                    .unwrap_or_else(|_| "http://localhost:3000".to_string())
+            }),
             session_variables: HashMap::new(),
         }
     }
@@ -142,7 +149,10 @@ pub struct ExecuteReplResponse {
 }
 
 pub async fn execute_repl(Json(payload): Json<ExecuteReplRequest>) -> impl IntoResponse {
-    let mut session = ReplSession::new(payload.language);
+    // Try to get container-api endpoint from service registry
+    let endpoint = get_service_endpoint("container-api").await;
+
+    let mut session = ReplSession::new_with_endpoint(payload.language, endpoint);
 
     match session.execute(&payload.code).await {
         Ok(result) => (

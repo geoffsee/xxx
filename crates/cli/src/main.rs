@@ -47,6 +47,15 @@ enum ContainerCommands {
         #[arg(long, default_value = "http://localhost:3000")]
         api_url: String,
     },
+    /// Remove a container
+    Remove {
+        /// Container ID to remove
+        #[arg(short, long)]
+        id: String,
+        /// Container API URL
+        #[arg(long, default_value = "http://localhost:3000")]
+        api_url: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -104,6 +113,13 @@ async fn main() -> anyhow::Result<()> {
                 let response = client.create_container(image, command).await?;
                 println!("✓ {}", response.message);
                 println!("Container ID: {}", response.id);
+            }
+            ContainerCommands::Remove { id, api_url } => {
+                let client = ContainerClient::new(api_url);
+                println!("Removing container: {}", id);
+
+                let response = client.remove_container(id).await?;
+                println!("✓ {}", response.message);
             }
         },
         Commands::Repl { command } => match command {

@@ -11,6 +11,10 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 axum = "0.8"
 syn = { version = "2.0.106", optional = true }
+service-registry = { path = "../service-registry" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hostname = "0.4"
 
 
 [dev-dependencies]

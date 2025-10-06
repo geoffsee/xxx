@@ -13,6 +13,12 @@ pub struct CreateContainerResponse {
     pub message: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RemoveContainerResponse {
+    pub id: String,
+    pub message: String,
+}
+
 pub struct ContainerClient {
     base_url: String,
     client: reqwest::Client,
@@ -81,6 +87,32 @@ impl ContainerClient {
             .context("Failed to parse create container response")?;
 
         Ok(container_response)
+    }
+
+    pub async fn remove_container(&self, id: String) -> Result<RemoveContainerResponse> {
+        let url = format!("{}/api/containers/{}", self.base_url, id);
+
+        let response = self
+            .client
+            .delete(&url)
+            .send()
+            .await
+            .context("Failed to send remove container request")?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            anyhow::bail!("Failed to remove container: {}", error_text);
+        }
+
+        let remove_response: RemoveContainerResponse = response
+            .json()
+            .await
+            .context("Failed to parse remove container response")?;
+
+        Ok(remove_response)
     }
 }
 
