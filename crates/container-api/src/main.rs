@@ -31,12 +31,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_hello_world() {
-        let app = Router::new().route("/hello", get(health));
+        let app = Router::new().route("/healthz", get(health));
 
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/hello")
+                    .uri("/healthz")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -48,6 +48,6 @@ mod tests {
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
-        assert_eq!(&body[..], b"Hello, World!");
+        assert_eq!(&body[..], b"Ok");
     }
 }
