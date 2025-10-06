@@ -29,6 +29,8 @@ impl std::str::FromStr for Language {
 pub struct ExecuteReplRequest {
     pub language: Language,
     pub code: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependencies: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,9 +82,18 @@ impl ReplClient {
         Ok(languages_response.languages)
     }
 
-    pub async fn execute(&self, language: Language, code: String) -> Result<ExecuteReplResponse> {
+    pub async fn execute(
+        &self,
+        language: Language,
+        code: String,
+        dependencies: Vec<String>,
+    ) -> Result<ExecuteReplResponse> {
         let url = format!("{}/api/repl/execute", self.base_url);
-        let request = ExecuteReplRequest { language, code };
+        let request = ExecuteReplRequest {
+            language,
+            code,
+            dependencies,
+        };
 
         let response = self
             .client
@@ -155,11 +166,30 @@ mod tests {
         let request = ExecuteReplRequest {
             language: Language::Python,
             code: "print('hello')".to_string(),
+            dependencies: vec![],
         };
 
         let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains("Python"));
         assert!(json.contains("print('hello')"));
+        // Empty dependencies should not be serialized
+        assert!(!json.contains("dependencies"));
+    }
+
+    #[test]
+    fn test_execute_repl_request_serialization_with_dependencies() {
+        let request = ExecuteReplRequest {
+            language: Language::Python,
+            code: "import requests".to_string(),
+            dependencies: vec!["requests".to_string(), "numpy".to_string()],
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("Python"));
+        assert!(json.contains("import requests"));
+        assert!(json.contains("dependencies"));
+        assert!(json.contains("requests"));
+        assert!(json.contains("numpy"));
     }
 
     #[test]

@@ -74,6 +74,9 @@ enum ReplCommands {
         /// Code to execute
         #[arg(short, long)]
         code: String,
+        /// Dependencies to install (can be specified multiple times)
+        #[arg(short, long)]
+        dependencies: Vec<String>,
         /// REPL API URL
         #[arg(long, default_value = "http://localhost:3001")]
         api_url: String,
@@ -135,13 +138,17 @@ async fn main() -> anyhow::Result<()> {
             ReplCommands::Execute {
                 language,
                 code,
+                dependencies,
                 api_url,
             } => {
                 let client = ReplClient::new(api_url);
                 let lang: Language = language.parse()?;
 
+                if !dependencies.is_empty() {
+                    println!("Installing dependencies: {}", dependencies.join(", "));
+                }
                 println!("Executing {} code...", language);
-                let response = client.execute(lang, code).await?;
+                let response = client.execute(lang, code, dependencies).await?;
 
                 if response.success {
                     println!("✓ Success!");

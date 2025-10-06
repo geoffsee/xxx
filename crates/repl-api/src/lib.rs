@@ -26,6 +26,30 @@ impl Language {
         }
     }
 
+    pub fn install_dependencies_command(&self, dependencies: &[String]) -> Option<String> {
+        if dependencies.is_empty() {
+            return None;
+        }
+
+        let deps = dependencies.join(" ");
+        let cmd = match self {
+            Language::Python => format!("pip install --quiet {}", deps),
+            Language::Node => format!("npm install --global --quiet {}", deps),
+            Language::Rust => {
+                // For Rust, we install binaries via cargo install
+                format!("cargo install --quiet {}", deps)
+            }
+            Language::Go => {
+                // For Go, we use go get (deprecated in Go 1.17+ but still works for simple cases)
+                // In a real implementation, you might want to initialize a Go module
+                format!("go install {}@latest", deps)
+            }
+            Language::Ruby => format!("gem install --quiet {}", deps),
+        };
+
+        Some(cmd)
+    }
+
     pub fn execute_command(&self, code: &str) -> Vec<String> {
         match self {
             Language::Python => vec!["python".to_string(), "-c".to_string(), code.to_string()],
@@ -49,6 +73,32 @@ impl Language {
                 ]
             }
             Language::Ruby => vec!["ruby".to_string(), "-e".to_string(), code.to_string()],
+        }
+    }
+
+    pub fn build_command_with_dependencies(
+        &self,
+        code: &str,
+        dependencies: &[String],
+    ) -> Vec<String> {
+        let install_cmd = self.install_dependencies_command(dependencies);
+        let execute_cmd_parts = self.execute_command(code);
+
+        match install_cmd {
+            Some(install) => {
+                // Combine install and execute commands
+                let combined = if execute_cmd_parts[0] == "sh" && execute_cmd_parts.len() == 3 {
+                    // Already using shell, append to existing command
+                    format!("{} && {}", install, execute_cmd_parts[2])
+                } else {
+                    // Need to wrap in shell
+                    let exec_part = execute_cmd_parts.join(" ");
+                    format!("{} && {}", install, exec_part)
+                };
+
+                vec!["sh".to_string(), "-c".to_string(), combined]
+            }
+            None => execute_cmd_parts,
         }
     }
 }
@@ -90,11 +140,21 @@ impl ReplSession {
     }
 
     pub async fn execute(&mut self, code: &str) -> Result<String> {
+        self.execute_with_dependencies(code, &[]).await
+    }
+
+    pub async fn execute_with_dependencies(
+        &mut self,
+        code: &str,
+        dependencies: &[String],
+    ) -> Result<String> {
         let client = reqwest::Client::new();
 
         let request = CreateContainerRequest {
             image: self.language.container_image().to_string(),
-            command: self.language.execute_command(code),
+            command: self
+                .language
+                .build_command_with_dependencies(code, dependencies),
         };
 
         let response = client
@@ -143,6 +203,8 @@ impl ReplSession {
 pub struct ExecuteReplRequest {
     pub language: Language,
     pub code: String,
+    #[serde(default)]
+    pub dependencies: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -157,7 +219,10 @@ pub async fn execute_repl(Json(payload): Json<ExecuteReplRequest>) -> impl IntoR
 
     let mut session = ReplSession::new_with_endpoint(payload.language, endpoint);
 
-    match session.execute(&payload.code).await {
+    match session
+        .execute_with_dependencies(&payload.code, &payload.dependencies)
+        .await
+    {
         Ok(result) => (
             StatusCode::OK,
             Json(ExecuteReplResponse {
@@ -276,5 +341,99 @@ mod tests {
     fn test_repl_session_language_getter() {
         let session = ReplSession::new(Language::Ruby);
         assert!(matches!(session.language(), Language::Ruby));
+    }
+
+    #[test]
+    fn test_install_dependencies_command_python() {
+        let deps = vec!["requests".to_string(), "numpy".to_string()];
+        let cmd = Language::Python.install_dependencies_command(&deps);
+        assert_eq!(cmd, Some("pip install --quiet requests numpy".to_string()));
+    }
+
+    #[test]
+    fn test_install_dependencies_command_node() {
+        let deps = vec!["express".to_string(), "lodash".to_string()];
+        let cmd = Language::Node.install_dependencies_command(&deps);
+        assert_eq!(
+            cmd,
+            Some("npm install --global --quiet express lodash".to_string())
+        );
+    }
+
+    #[test]
+    fn test_install_dependencies_command_ruby() {
+        let deps = vec!["rails".to_string(), "sinatra".to_string()];
+        let cmd = Language::Ruby.install_dependencies_command(&deps);
+        assert_eq!(cmd, Some("gem install --quiet rails sinatra".to_string()));
+    }
+
+    #[test]
+    fn test_install_dependencies_command_rust() {
+        let deps = vec!["ripgrep".to_string()];
+        let cmd = Language::Rust.install_dependencies_command(&deps);
+        assert_eq!(cmd, Some("cargo install --quiet ripgrep".to_string()));
+    }
+
+    #[test]
+    fn test_install_dependencies_command_go() {
+        let deps = vec!["github.com/spf13/cobra".to_string()];
+        let cmd = Language::Go.install_dependencies_command(&deps);
+        assert_eq!(
+            cmd,
+            Some("go install github.com/spf13/cobra@latest".to_string())
+        );
+    }
+
+    #[test]
+    fn test_install_dependencies_command_empty() {
+        let deps: Vec<String> = vec![];
+        let cmd = Language::Python.install_dependencies_command(&deps);
+        assert_eq!(cmd, None);
+    }
+
+    #[test]
+    fn test_build_command_with_dependencies_python() {
+        let code = "import requests; print('hello')";
+        let deps = vec!["requests".to_string()];
+        let cmd = Language::Python.build_command_with_dependencies(code, &deps);
+        assert_eq!(cmd.len(), 3);
+        assert_eq!(cmd[0], "sh");
+        assert_eq!(cmd[1], "-c");
+        assert!(cmd[2].contains("pip install --quiet requests"));
+        assert!(cmd[2].contains("python -c"));
+    }
+
+    #[test]
+    fn test_build_command_with_dependencies_node() {
+        let code = "console.log('hello')";
+        let deps = vec!["lodash".to_string()];
+        let cmd = Language::Node.build_command_with_dependencies(code, &deps);
+        assert_eq!(cmd.len(), 3);
+        assert_eq!(cmd[0], "sh");
+        assert_eq!(cmd[1], "-c");
+        assert!(cmd[2].contains("npm install --global --quiet lodash"));
+        assert!(cmd[2].contains("node -e"));
+    }
+
+    #[test]
+    fn test_build_command_with_dependencies_no_deps() {
+        let code = "print('hello')";
+        let deps: Vec<String> = vec![];
+        let cmd = Language::Python.build_command_with_dependencies(code, &deps);
+        // Should be the same as execute_command when no dependencies
+        let expected = Language::Python.execute_command(code);
+        assert_eq!(cmd, expected);
+    }
+
+    #[test]
+    fn test_build_command_with_dependencies_go() {
+        let code = "package main\nfunc main() { println(\"hello\") }";
+        let deps = vec!["github.com/spf13/cobra".to_string()];
+        let cmd = Language::Go.build_command_with_dependencies(code, &deps);
+        assert_eq!(cmd.len(), 3);
+        assert_eq!(cmd[0], "sh");
+        assert_eq!(cmd[1], "-c");
+        assert!(cmd[2].contains("go install github.com/spf13/cobra@latest"));
+        assert!(cmd[2].contains("go run"));
     }
 }

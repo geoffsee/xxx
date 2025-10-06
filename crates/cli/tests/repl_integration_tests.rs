@@ -89,7 +89,7 @@ async fn test_execute_repl_python_success() {
 
     let client = ReplClient::new(server.url());
     let result = client
-        .execute(Language::Python, "print('hello')".to_string())
+        .execute(Language::Python, "print('hello')".to_string(), vec![])
         .await;
 
     mock.assert_async().await;
@@ -113,7 +113,7 @@ async fn test_execute_repl_node_success() {
 
     let client = ReplClient::new(server.url());
     let result = client
-        .execute(Language::Node, "console.log('hello')".to_string())
+        .execute(Language::Node, "console.log('hello')".to_string(), vec![])
         .await;
 
     mock.assert_async().await;
@@ -137,7 +137,7 @@ async fn test_execute_repl_failure() {
 
     let client = ReplClient::new(server.url());
     let result = client
-        .execute(Language::Python, "invalid python code".to_string())
+        .execute(Language::Python, "invalid python code".to_string(), vec![])
         .await;
 
     mock.assert_async().await;
@@ -160,7 +160,7 @@ async fn test_execute_repl_server_error() {
 
     let client = ReplClient::new(server.url());
     let result = client
-        .execute(Language::Rust, "fn main() {}".to_string())
+        .execute(Language::Rust, "fn main() {}".to_string(), vec![])
         .await;
 
     mock.assert_async().await;
@@ -184,7 +184,7 @@ async fn test_execute_repl_all_languages() {
 
     let client = ReplClient::new(server.url());
     let result = client
-        .execute(Language::Python, "print('test')".to_string())
+        .execute(Language::Python, "print('test')".to_string(), vec![])
         .await;
     assert!(result.is_ok());
     mock_python.assert_async().await;
@@ -199,7 +199,7 @@ async fn test_execute_repl_all_languages() {
         .await;
 
     let result = client
-        .execute(Language::Node, "console.log('test')".to_string())
+        .execute(Language::Node, "console.log('test')".to_string(), vec![])
         .await;
     assert!(result.is_ok());
     mock_node.assert_async().await;
@@ -214,7 +214,7 @@ async fn test_execute_repl_all_languages() {
         .await;
 
     let result = client
-        .execute(Language::Rust, "fn main() {}".to_string())
+        .execute(Language::Rust, "fn main() {}".to_string(), vec![])
         .await;
     assert!(result.is_ok());
     mock_rust.assert_async().await;
@@ -229,7 +229,7 @@ async fn test_execute_repl_all_languages() {
         .await;
 
     let result = client
-        .execute(Language::Go, "package main".to_string())
+        .execute(Language::Go, "package main".to_string(), vec![])
         .await;
     assert!(result.is_ok());
     mock_go.assert_async().await;
@@ -244,7 +244,7 @@ async fn test_execute_repl_all_languages() {
         .await;
 
     let result = client
-        .execute(Language::Ruby, "puts 'test'".to_string())
+        .execute(Language::Ruby, "puts 'test'".to_string(), vec![])
         .await;
     assert!(result.is_ok());
     mock_ruby.assert_async().await;
