@@ -9,7 +9,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let app = Router::new()
-        .route("/healthz", get(health))
+
         .route("/api/containers/list", get(list_containers))
         .route(
             "/api/containers/create",

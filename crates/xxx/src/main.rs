@@ -77,5 +77,52 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+
+        // Check that response contains expected languages
+        assert!(body_str.contains("Python"));
+        assert!(body_str.contains("Node"));
+        assert!(body_str.contains("Rust"));
+        assert!(body_str.contains("Go"));
+        assert!(body_str.contains("Ruby"));
+    }
+
+    #[tokio::test]
+    async fn test_all_routes_mounted() {
+        let app = Router::new()
+            .route("/healthz", get(health))
+            .route("/api/containers/list", get(list_containers))
+            .route("/api/containers/create", post(create_container))
+            .route("/api/repl/execute", post(execute_repl))
+            .route("/api/repl/languages", get(list_languages));
+
+        // Test health check route
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/healthz")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Test languages route
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/repl/languages")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

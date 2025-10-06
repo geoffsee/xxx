@@ -180,3 +180,88 @@ pub async fn list_languages() -> impl IntoResponse {
         ],
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_language_container_image() {
+        assert_eq!(Language::Python.container_image(), "python:3.11-slim");
+        assert_eq!(Language::Node.container_image(), "node:20-slim");
+        assert_eq!(Language::Rust.container_image(), "rust:1.75-slim");
+        assert_eq!(Language::Go.container_image(), "golang:1.21-alpine");
+        assert_eq!(Language::Ruby.container_image(), "ruby:3.2-slim");
+    }
+
+    #[test]
+    fn test_language_execute_command_python() {
+        let code = "print('hello')";
+        let command = Language::Python.execute_command(code);
+        assert_eq!(command, vec!["python", "-c", "print('hello')"]);
+    }
+
+    #[test]
+    fn test_language_execute_command_node() {
+        let code = "console.log('hello')";
+        let command = Language::Node.execute_command(code);
+        assert_eq!(command, vec!["node", "-e", "console.log('hello')"]);
+    }
+
+    #[test]
+    fn test_language_execute_command_ruby() {
+        let code = "puts 'hello'";
+        let command = Language::Ruby.execute_command(code);
+        assert_eq!(command, vec!["ruby", "-e", "puts 'hello'"]);
+    }
+
+    #[test]
+    fn test_language_execute_command_rust() {
+        let code = "fn main() { println!(\"hello\"); }";
+        let command = Language::Rust.execute_command(code);
+        assert_eq!(command.len(), 3);
+        assert_eq!(command[0], "sh");
+        assert_eq!(command[1], "-c");
+        assert!(command[2].contains("rustc"));
+        assert!(command[2].contains("/tmp/main.rs"));
+    }
+
+    #[test]
+    fn test_language_execute_command_go() {
+        let code = "package main\nfunc main() { println(\"hello\") }";
+        let command = Language::Go.execute_command(code);
+        assert_eq!(command.len(), 3);
+        assert_eq!(command[0], "sh");
+        assert_eq!(command[1], "-c");
+        assert!(command[2].contains("go run"));
+        assert!(command[2].contains("/tmp/main.go"));
+    }
+
+    #[test]
+    fn test_repl_session_new() {
+        let session = ReplSession::new(Language::Python);
+        assert!(matches!(session.language(), Language::Python));
+    }
+
+    #[test]
+    fn test_repl_session_variables() {
+        let mut session = ReplSession::new(Language::Python);
+
+        // Test setting and getting variables
+        session.set_variable("x".to_string(), "42".to_string());
+        assert_eq!(session.get_variable("x"), Some(&"42".to_string()));
+
+        // Test getting non-existent variable
+        assert_eq!(session.get_variable("y"), None);
+
+        // Test overwriting variable
+        session.set_variable("x".to_string(), "100".to_string());
+        assert_eq!(session.get_variable("x"), Some(&"100".to_string()));
+    }
+
+    #[test]
+    fn test_repl_session_language_getter() {
+        let session = ReplSession::new(Language::Ruby);
+        assert!(matches!(session.language(), Language::Ruby));
+    }
+}

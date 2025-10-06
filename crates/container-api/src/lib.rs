@@ -112,3 +112,57 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
     )
         .into_response()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use axum::Router;
+    use axum::routing::get;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn test_health() {
+        let result = health().await;
+        assert_eq!(result, "Ok");
+    }
+
+    #[tokio::test]
+    async fn test_health_endpoint() {
+        let app = Router::new().route("/health", get(health));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(&body[..], b"Ok");
+    }
+
+    #[test]
+    fn test_create_container_request_deserialization() {
+        let json = r#"{"image":"python:3.11","command":["python","-c","print('hello')"]}"#;
+        let request: CreateContainerRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.image, "python:3.11");
+        assert_eq!(request.command, Some(vec!["python".to_string(), "-c".to_string(), "print('hello')".to_string()]));
+    }
+
+    #[test]
+    fn test_create_container_request_deserialization_no_command() {
+        let json = r#"{"image":"python:3.11"}"#;
+        let request: CreateContainerRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.image, "python:3.11");
+        assert_eq!(request.command, None);
+    }
+}
