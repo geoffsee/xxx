@@ -13,6 +13,14 @@ services:
     depends_on:
       - service-registry
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1g
+        reservations:
+          cpus: "0.25"
+          memory: 512m
 
   repl-api:
     build:
@@ -28,6 +36,14 @@ services:
     depends_on:
       - service-registry
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1g
+        reservations:
+          cpus: "0.25"
+          memory: 512m
 
   coreos:
     image: ghcr.io/geoffsee/fedora-coreos:stable
@@ -46,6 +62,14 @@ services:
       - sandbox-data:/data/sandbox
     networks:
       - coreos-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2g
+        reservations:
+          cpus: "0.5"
+          memory: 1g
 
   coreos-etcd:
     image: quay.io/coreos/etcd:v3.5.15
@@ -78,6 +102,14 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 512m
+        reservations:
+          cpus: "0.1"
+          memory: 256m
 
   service-registry:
     build:
@@ -95,6 +127,14 @@ services:
       coreos-etcd:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 512m
+        reservations:
+          cpus: "0.1"
+          memory: 256m
 
   registry:
     image: registry:2
@@ -106,7 +146,14 @@ services:
     volumes:
       - registry-data:/var/lib/registry
     restart: unless-stopped
-
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1g
+        reservations:
+          cpus: "0.25"
+          memory: 512m
 volumes:
   etcd-data:
   sandbox-data:
