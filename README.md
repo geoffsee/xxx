@@ -3,8 +3,6 @@
 ```shell
 git clone https://github.com/geoffsee/xxx.git
 
-cargo check
-
 ./run.sh
 
 cargo run -p cli -- container create --api-url http://localhost:3001 \
