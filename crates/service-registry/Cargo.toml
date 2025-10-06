@@ -15,7 +15,7 @@ hostname = "0.4"
 service-registry-macros = { path = "../service-registry-macros" }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["trace"] }
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 url = "2.5"
 
 [dependencies.tracing-subscriber]

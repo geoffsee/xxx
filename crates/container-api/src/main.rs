@@ -14,6 +14,7 @@ async fn main() {
     tracing::info!("Service registered: {} ({})", service.name, service.id);
 
     let app = Router::new()
+
         .route("/api/containers/list", get(list_containers))
         .route(
             "/api/containers/create",

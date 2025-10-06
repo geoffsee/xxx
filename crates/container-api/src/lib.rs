@@ -46,15 +46,15 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
         .image(&payload.image)
         .command(payload.command.unwrap_or_default())
         .net_namespace(Namespace {
-            nsmode: Some("host".to_string()),
+            nsmode: Some("private".to_string()),
             value: None,
         })
         .pid_namespace(Namespace {
-            nsmode: Some("host".to_string()),
+            nsmode: Some("private".to_string()),
             value: None,
         })
         .ipc_namespace(Namespace {
-            nsmode: Some("host".to_string()),
+            nsmode: Some("private".to_string()),
             value: None,
         })
         .systemd(SystemdEnabled::False)
