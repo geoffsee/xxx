@@ -1,5 +1,10 @@
 # xxx
 
+daddy is watching
+
+## Prerequisites
+- podman/podman compose
+
 ```shell
 git clone https://github.com/geoffsee/xxx.git
 
