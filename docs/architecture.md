@@ -82,6 +82,8 @@ sequenceDiagram
 
 ## REPL Execution Flow
 
+### Standard (Non-Streaming) Execution
+
 ```mermaid
 sequenceDiagram
   participant User as User (CLI/UI)
@@ -107,11 +109,54 @@ sequenceDiagram
   RAPI-->>User: {result, success:true}
 ```
 
+### Streaming Execution (SSE)
+
+The CLI and other clients now use streaming by default for real-time output:
+
+```mermaid
+sequenceDiagram
+  participant User as User (CLI/UI)
+  participant RAPI as repl-api
+  participant SR as service-registry
+  participant CAPI as container-api
+  participant SR2 as service-registry
+  participant CORE as Fedora CoreOS (Podman)
+  participant REG as Local Registry
+
+  User->>RAPI: POST /api/repl/execute/stream {language, code}
+  RAPI->>SR: GET /api/registry/services/container-api
+  SR-->>RAPI: [{address, port, ...}]
+  RAPI->>CAPI: POST /api/containers/create/stream {image, command}
+  CAPI->>SR2: GET /api/registry/services/coreos
+  SR2-->>CAPI: [{address, port, ...}]
+  CAPI->>CORE: Podman: pull(image) + attach
+  CORE->>REG: Fetch image layers
+  CAPI->>CORE: start container(command)
+  loop Real-time output
+    CORE-->>CAPI: SSE: stdout/stderr chunks
+    CAPI-->>RAPI: SSE: forward chunks
+    RAPI-->>User: SSE: stream output
+  end
+  CAPI->>CORE: wait + cleanup
+  CAPI-->>RAPI: SSE: event=done
+  RAPI-->>User: SSE: event=done
+```
+
+Streaming features:
+- Uses Server-Sent Events (SSE) for real-time output delivery
+- Container output is streamed as it's generated (no buffering)
+- Errors are prefixed with `ERROR:` in the stream
+- Stream ends with `event:done` when container execution completes
+- Automatic cleanup after container finishes
+
 Error handling:
 - If discovery fails, services fall back to env vars (`CONTAINERS_API_URL`, `COREOS_URL`).
 - Pull or run errors are propagated back to callers with `500` and explanatory messages.
+- For streaming endpoints, errors are sent as SSE events prefixed with `ERROR:`
 
 ## Container Lifecycle (container-api)
+
+### Standard (Non-Streaming) Flow
 
 ```mermaid
 flowchart TD
@@ -125,6 +170,25 @@ flowchart TD
   H --> I[Fetch logs stdout/stderr]
   I --> J[Remove container]
   J --> K[Return 200 + id + output]
+```
+
+### Streaming Flow (SSE)
+
+```mermaid
+flowchart TD
+  A[Request: image + command] --> B[Pull image]
+  B -->|monitor progress| C{Pull success?}
+  C -- no --> E[SSE: ERROR event]
+  C -- yes --> F[Create container]
+  F -->|if fail| E
+  F -->|if ok| G[Attach to container]
+  G --> H[Start container]
+  H --> I[Stream stdout/stderr in real-time]
+  I -->|SSE: data events| J{Container running?}
+  J -- yes --> I
+  J -- no --> K[Wait for exit]
+  K --> L[Remove container]
+  L --> M[SSE: event=done]
 ```
 
 ## Service Registry Data Model
@@ -202,10 +266,12 @@ flowchart LR
 - `container-api`:
   - `GET  /api/containers/list` → `string[][]`
   - `POST /api/containers/create` → `{ id, message, output? }`
+  - `POST /api/containers/create/stream` → SSE stream (real-time output)
   - `DELETE /api/containers/{id}` → `{ id, message }`
 - `repl-api`:
   - `GET  /api/repl/languages` → `{ languages: string[] }`
   - `POST /api/repl/execute` → `{ result, success }`
+  - `POST /api/repl/execute/stream` → SSE stream (real-time output)
 
 ## Configuration
 
