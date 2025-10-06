@@ -1,0 +1,228 @@
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Language {
+    Python,
+    Node,
+    Rust,
+    Go,
+    Ruby,
+}
+
+impl std::str::FromStr for Language {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "python" => Ok(Language::Python),
+            "node" => Ok(Language::Node),
+            "rust" => Ok(Language::Rust),
+            "go" => Ok(Language::Go),
+            "ruby" => Ok(Language::Ruby),
+            _ => anyhow::bail!("Unknown language: {}", s),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExecuteReplRequest {
+    pub language: Language,
+    pub code: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExecuteReplResponse {
+    pub result: String,
+    pub success: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LanguagesResponse {
+    pub languages: Vec<String>,
+}
+
+pub struct ReplClient {
+    base_url: String,
+    client: reqwest::Client,
+}
+
+impl ReplClient {
+    pub fn new(base_url: String) -> Self {
+        Self {
+            base_url,
+            client: reqwest::Client::new(),
+        }
+    }
+
+    pub async fn list_languages(&self) -> Result<Vec<String>> {
+        let url = format!("{}/api/repl/languages", self.base_url);
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .context("Failed to send list languages request")?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            anyhow::bail!("Failed to list languages: {}", error_text);
+        }
+
+        let languages_response: LanguagesResponse = response
+            .json()
+            .await
+            .context("Failed to parse list languages response")?;
+
+        Ok(languages_response.languages)
+    }
+
+    pub async fn execute(&self, language: Language, code: String) -> Result<ExecuteReplResponse> {
+        let url = format!("{}/api/repl/execute", self.base_url);
+        let request = ExecuteReplRequest { language, code };
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .context("Failed to send execute REPL request")?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            anyhow::bail!("Failed to execute REPL code: {}", error_text);
+        }
+
+        let execute_response: ExecuteReplResponse = response
+            .json()
+            .await
+            .context("Failed to parse execute REPL response")?;
+
+        Ok(execute_response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_language_from_str_valid() {
+        assert!(matches!("python".parse::<Language>().unwrap(), Language::Python));
+        assert!(matches!("Python".parse::<Language>().unwrap(), Language::Python));
+        assert!(matches!("PYTHON".parse::<Language>().unwrap(), Language::Python));
+
+        assert!(matches!("node".parse::<Language>().unwrap(), Language::Node));
+        assert!(matches!("Node".parse::<Language>().unwrap(), Language::Node));
+
+        assert!(matches!("rust".parse::<Language>().unwrap(), Language::Rust));
+        assert!(matches!("Rust".parse::<Language>().unwrap(), Language::Rust));
+
+        assert!(matches!("go".parse::<Language>().unwrap(), Language::Go));
+        assert!(matches!("Go".parse::<Language>().unwrap(), Language::Go));
+
+        assert!(matches!("ruby".parse::<Language>().unwrap(), Language::Ruby));
+        assert!(matches!("Ruby".parse::<Language>().unwrap(), Language::Ruby));
+    }
+
+    #[test]
+    fn test_language_from_str_invalid() {
+        assert!("javascript".parse::<Language>().is_err());
+        assert!("java".parse::<Language>().is_err());
+        assert!("cpp".parse::<Language>().is_err());
+        assert!("".parse::<Language>().is_err());
+        assert!("unknown".parse::<Language>().is_err());
+    }
+
+    #[test]
+    fn test_language_from_str_error_message() {
+        let result = "javascript".parse::<Language>();
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Unknown language"));
+        assert!(err_msg.contains("javascript"));
+    }
+
+    #[test]
+    fn test_execute_repl_request_serialization() {
+        let request = ExecuteReplRequest {
+            language: Language::Python,
+            code: "print('hello')".to_string(),
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("Python"));
+        assert!(json.contains("print('hello')"));
+    }
+
+    #[test]
+    fn test_execute_repl_response_deserialization() {
+        let json = r#"{"result":"Output here","success":true}"#;
+        let response: ExecuteReplResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.result, "Output here");
+        assert!(response.success);
+    }
+
+    #[test]
+    fn test_execute_repl_response_deserialization_failure() {
+        let json = r#"{"result":"Error message","success":false}"#;
+        let response: ExecuteReplResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.result, "Error message");
+        assert!(!response.success);
+    }
+
+    #[test]
+    fn test_languages_response_deserialization() {
+        let json = r#"{"languages":["Python","Node","Rust","Go","Ruby"]}"#;
+        let response: LanguagesResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.languages.len(), 5);
+        assert_eq!(response.languages[0], "Python");
+        assert_eq!(response.languages[4], "Ruby");
+    }
+
+    #[test]
+    fn test_repl_client_creation() {
+        let client = ReplClient::new("http://localhost:3001".to_string());
+        assert_eq!(client.base_url, "http://localhost:3001");
+    }
+
+    #[test]
+    fn test_language_serialization() {
+        assert_eq!(serde_json::to_string(&Language::Python).unwrap(), r#""Python""#);
+        assert_eq!(serde_json::to_string(&Language::Node).unwrap(), r#""Node""#);
+        assert_eq!(serde_json::to_string(&Language::Rust).unwrap(), r#""Rust""#);
+        assert_eq!(serde_json::to_string(&Language::Go).unwrap(), r#""Go""#);
+        assert_eq!(serde_json::to_string(&Language::Ruby).unwrap(), r#""Ruby""#);
+    }
+
+    #[test]
+    fn test_language_deserialization() {
+        assert!(matches!(
+            serde_json::from_str::<Language>(r#""Python""#).unwrap(),
+            Language::Python
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Language>(r#""Node""#).unwrap(),
+            Language::Node
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Language>(r#""Rust""#).unwrap(),
+            Language::Rust
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Language>(r#""Go""#).unwrap(),
+            Language::Go
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Language>(r#""Ruby""#).unwrap(),
+            Language::Ruby
+        ));
+    }
+}
