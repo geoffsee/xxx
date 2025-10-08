@@ -51,7 +51,7 @@ services:
     image: ghcr.io/geoffsee/fedora-coreos:stable
     build:
       dockerfile: Containerfile
-      context: ./coreos
+      context: coreos-components/coreos
     container_name: coreos
     privileged: true
     ports:
@@ -77,7 +77,7 @@ services:
     image: ghcr.io/geoffsee/etcd:stable
     build:
       dockerfile: Containerfile
-      context: ./etcd
+      context: coreos-components/etcd
     container_name: coreos-etcd
     cgroup_parent: "coreos.slice"
     cgroup: "private"
@@ -146,7 +146,7 @@ services:
     image: ghcr.io/geoffsee/registry:stable
     build:
       dockerfile: Containerfile
-      context: registry
+      context: coreos-components/registry
     container_name: registry
     ports:
       - "5001:5000"
