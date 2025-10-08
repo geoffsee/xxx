@@ -1,0 +1,8 @@
+{
+  "language": "typescript",
+  "app": "npx ts-node main.ts",
+  "terraformProviders": [
+    "google@~> 3.74.0"
+  ],
+  "projectId": ""
+}

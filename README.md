@@ -2,6 +2,9 @@
 
 daddy is watching
 
+## What is this?
+A neat cloud. Not perfect but pretty sweet.      
+
 ## Prerequisites
 - podman/podman compose
 - cargo (Optional: for building cli)

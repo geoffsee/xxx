@@ -1,9 +1,6 @@
 services:
   container-api:
     image: ghcr.io/geoffsee/container-api:stable
-    build:
-      dockerfile: crates/container-api/Dockerfile
-      context: .
     container_name: container-api
     environment:
       - SERVICE_REGISTRY_URL=http://service-registry:3003
@@ -25,9 +22,6 @@ services:
 
   repl-api:
     image: ghcr.io/geoffsee/repl-api:stable
-    build:
-      dockerfile: crates/repl-api/Dockerfile
-      context: .
     container_name: repl-api
     environment:
       - SERVICE_REGISTRY_URL=http://service-registry:3003
@@ -49,13 +43,8 @@ services:
 
   coreos:
     image: ghcr.io/geoffsee/fedora-coreos:stable
-    build:
-      dockerfile: Containerfile
-      context: ./coreos
     container_name: coreos
     privileged: true
-    ports:
-      - "8085:8085"
     cgroup_parent: "coreos.slice"
     cgroup: "private"
     # Start systemd properly to enable podman and other services
@@ -75,9 +64,6 @@ services:
 
   coreos-etcd:
     image: ghcr.io/geoffsee/etcd:stable
-    build:
-      dockerfile: Containerfile
-      context: ./etcd
     container_name: coreos-etcd
     cgroup_parent: "coreos.slice"
     cgroup: "private"
@@ -95,9 +81,6 @@ services:
       "--initial-cluster-state", "new",
       "--initial-cluster-token", "etcd-cluster-1"
     ]
-    ports:
-      - "2379:2379"
-      - "2380:2380"
     volumes:
       - etcd-data:/etcd-data
     restart: unless-stopped
@@ -118,15 +101,10 @@ services:
 
   service-registry:
     image: ghcr.io/geoffsee/service-registry:stable
-    build:
-      dockerfile: crates/service-registry/Dockerfile
-      context: .
     container_name: service-registry
     environment:
       ETCD_ENDPOINTS: "coreos-etcd:2379"
       COREOS_URL: "http://coreos:8085"
-    ports:
-      - "3003:3003"
     networks:
       - coreos-net
     depends_on:
@@ -144,12 +122,7 @@ services:
 
   registry:
     image: ghcr.io/geoffsee/registry:stable
-    build:
-      dockerfile: Containerfile
-      context: registry
     container_name: registry
-    ports:
-      - "5001:5000"
     networks:
       - coreos-net
     volumes:

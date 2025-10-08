@@ -7,3 +7,15 @@ workspace.xml
 *.iml
 docs/openai-*.md
 docs/*-plan.md
+cdktf-ssh-key.pub
+cdktf-ssh-key
+google.json
+/crates/xxx-cloud/deployment-gcp/google/help
+/crates/xxx-cloud/deployment-gcp/.env
+node_modules
+.terraform.lock.hcl
+cdktf.json
+.gen
+*.out
+terraform.typescript-gcp.tfstate
+terraform.typescript-gcp.tfstate.backup
