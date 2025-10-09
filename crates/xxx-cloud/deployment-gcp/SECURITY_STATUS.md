@@ -5,16 +5,16 @@
 
 ## Quick Status Summary
 
-| Security Layer | Status | Notes |
-|----------------|--------|-------|
-| Network Access Control | ✅ IMPLEMENTED | SSH & API restricted by IP |
-| Container Isolation | ✅ IMPLEMENTED | Capabilities-based, no privileged |
-| Binary Verification | ✅ IMPLEMENTED | SHA256 checksum validation |
-| Internal Authentication | ✅ IMPLEMENTED | etcd password-protected |
-| Application Security | ✅ IMPLEMENTED | Code validation, rate limiting, timeouts |
-| TLS/HTTPS | ⚠️ RECOMMENDED | HTTP only (use load balancer for production) |
-| API Authentication | ⚠️ RECOMMENDED | IP-based only (add API keys for production) |
-| Image Verification | ⚠️ RECOMMENDED | Using `:stable` tags |
+| Security Layer | Status | Notes                                                    |
+|----------------|--------|----------------------------------------------------------|
+| Network Access Control | ✅ IMPLEMENTED | SSH & API restricted by IP                               |
+| Container Isolation | ✅ IMPLEMENTED | Capabilities-based, no privileged                        |
+| Binary Verification | ✅ IMPLEMENTED | SHA256 checksum validation                               |
+| Internal Authentication | ✅ IMPLEMENTED | etcd password-protected                                  |
+| Application Security | ✅ IMPLEMENTED | Code validation, rate limiting, timeouts                 |
+| TLS/HTTPS | ⚠️ RECOMMENDED | Self-signed HTTP only (use load balancer for production) |
+| API Authentication | ⚠️ RECOMMENDED | IP-based only (add API keys for production)              |
+| Image Verification | ⚠️ RECOMMENDED | Using `:stable` tags                                     |
 
 ##  Critical Issues Resolved
 
@@ -278,7 +278,6 @@ Current implementation provides:
 - ✅ Rate limiting
 - ✅ Execution timeouts
 - ✅ Audit logging (systemd journals)
-- ⚠️ Encryption in transit (HTTP only, HTTPS recommended)
 - ⚠️ Authentication (IP-based only, API keys recommended)
 
 **Suitable for**:
