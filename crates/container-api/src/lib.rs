@@ -12,6 +12,10 @@ use serde::Deserialize;
 use serde_json::json;
 use tokio_stream::StreamExt;
 use std::convert::Infallible;
+use std::time::Duration;
+
+/// Maximum execution time for a container (30 seconds)
+const MAX_EXECUTION_TIME_SECS: u64 = 30;
 
 pub async fn health() -> &'static str {
     "Ok"
@@ -116,13 +120,34 @@ pub async fn create_container(Json(payload): Json<CreateContainerRequest>) -> im
 
     println!("Container '{}' started, waiting for completion...", id);
 
-    // Wait for the container to finish
-    if let Err(e) = container.wait(&ContainerWaitOpts::builder().build()).await {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error waiting for container to finish: {}", e),
-        )
-            .into_response();
+    // Wait for the container to finish with timeout
+    let wait_result = tokio::time::timeout(
+        Duration::from_secs(MAX_EXECUTION_TIME_SECS),
+        container.wait(&ContainerWaitOpts::builder().build())
+    ).await;
+
+    match wait_result {
+        Ok(Ok(_)) => {
+            // Container finished successfully
+        }
+        Ok(Err(e)) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error waiting for container to finish: {}", e),
+            )
+                .into_response();
+        }
+        Err(_) => {
+            // Timeout occurred - forcibly stop the container
+            tracing::warn!("Container '{}' exceeded maximum execution time, terminating", id);
+            let _ = container.stop(&ContainerStopOpts::builder().timeout(5).build()).await;
+            let _ = container.remove().await;
+            return (
+                StatusCode::REQUEST_TIMEOUT,
+                format!("Container execution exceeded maximum time limit of {} seconds", MAX_EXECUTION_TIME_SECS),
+            )
+                .into_response();
+        }
     }
 
     // Get container logs (stdout + stderr)

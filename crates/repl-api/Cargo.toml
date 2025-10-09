@@ -20,6 +20,8 @@ futures-util = "0.3"
 rcgen = "0.14.5"
 axum-server = { version = "0.7", features = ["tls-rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["std", "log", "ring"] }
+regex = "1.11.3"
+once_cell = "1.21.3"
 
 
 [dev-dependencies]

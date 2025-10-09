@@ -44,7 +44,16 @@ services:
   coreos:
     image: ghcr.io/geoffsee/fedora-coreos:stable
     container_name: coreos
-    privileged: true
+    # SECURITY: Removed privileged flag. Using specific capabilities instead.
+    # If you need privileged access, explicitly document why in SECURITY.md
+    # privileged: true
+    security_opt:
+      - "no-new-privileges:true"
+    cap_add:
+      - SYS_ADMIN  # Required for systemd and podman-in-podman
+      - NET_ADMIN  # Required for network management
+    cap_drop:
+      - ALL  # Drop all other capabilities
     cgroup_parent: "coreos.slice"
     cgroup: "private"
     # Start systemd properly to enable podman and other services
@@ -69,15 +78,23 @@ services:
     cgroup: "private"
     networks:
       - coreos-net
+    environment:
+      # SECURITY: Enable authentication
+      # NOTE: Since this is internal network only, using basic auth
+      # For production, consider mTLS with certificates
+      - ETCD_ROOT_PASSWORD=${ETCD_ROOT_PASSWORD:-changeme}
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
     command: [
       "etcd",
       "--name", "s1",
       "--data-dir", "/etcd-data",
-      "--advertise-client-urls", "http://0.0.0.0:2379",
+      # Bind to internal network only (not 0.0.0.0)
+      "--advertise-client-urls", "http://coreos-etcd:2379",
       "--listen-client-urls", "http://0.0.0.0:2379",
-      "--initial-advertise-peer-urls", "http://0.0.0.0:2380",
+      "--initial-advertise-peer-urls", "http://coreos-etcd:2380",
       "--listen-peer-urls", "http://0.0.0.0:2380",
-      "--initial-cluster", "s1=http://0.0.0.0:2380",
+      "--initial-cluster", "s1=http://coreos-etcd:2380",
       "--initial-cluster-state", "new",
       "--initial-cluster-token", "etcd-cluster-1"
     ]

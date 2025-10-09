@@ -1,3 +1,6 @@
+mod security;
+pub use security::{validate_code, CodeValidationResult, SecurityViolation};
+
 use anyhow::{Context, Result};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -217,6 +220,39 @@ pub struct ExecuteReplResponse {
 }
 
 pub async fn execute_repl(Json(payload): Json<ExecuteReplRequest>) -> impl IntoResponse {
+    // Validate code for security violations
+    let language_str = format!("{:?}", payload.language);
+    let validation = validate_code(&payload.code, &language_str, &payload.dependencies);
+
+    if !validation.is_safe {
+        let violations_msg = validation
+            .violations
+            .iter()
+            .filter(|v| v.should_block)
+            .map(|v| v.description.clone())
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        tracing::warn!(
+            "Code execution blocked due to security violations: {}",
+            violations_msg
+        );
+
+        return (
+            StatusCode::FORBIDDEN,
+            Json(ExecuteReplResponse {
+                result: format!("Code execution blocked: {}", violations_msg),
+                success: false,
+            }),
+        )
+            .into_response();
+    }
+
+    // Log warnings for non-blocking violations
+    for violation in validation.violations.iter().filter(|v| !v.should_block) {
+        tracing::warn!("Security warning: {}", violation.description);
+    }
+
     // Try to get container-api endpoint from service registry
     let endpoint = get_service_endpoint("container-api").await;
 
@@ -254,6 +290,33 @@ pub async fn execute_repl_stream(
     Json(payload): Json<ExecuteReplRequest>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let stream = async_stream::stream! {
+        // Validate code for security violations
+        let language_str = format!("{:?}", payload.language);
+        let validation = validate_code(&payload.code, &language_str, &payload.dependencies);
+
+        if !validation.is_safe {
+            let violations_msg = validation
+                .violations
+                .iter()
+                .filter(|v| v.should_block)
+                .map(|v| v.description.clone())
+                .collect::<Vec<_>>()
+                .join("; ");
+
+            tracing::warn!(
+                "Code execution blocked due to security violations: {}",
+                violations_msg
+            );
+
+            yield Ok(Event::default().data(format!("ERROR: Code execution blocked: {}", violations_msg)));
+            return;
+        }
+
+        // Log warnings for non-blocking violations
+        for violation in validation.violations.iter().filter(|v| !v.should_block) {
+            tracing::warn!("Security warning: {}", violation.description);
+        }
+
         // Try to get container-api endpoint from service registry
         let endpoint = get_service_endpoint("container-api").await;
         let containers_api_url = endpoint.unwrap_or_else(|| {

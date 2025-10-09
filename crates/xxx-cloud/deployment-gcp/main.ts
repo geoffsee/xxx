@@ -87,7 +87,7 @@ WantedBy=sockets.target`,
                         name: "install-podman-compose.service",
                         enabled: true,
                         contents: `[Unit]
-Description=Download Docker Compose CLI plugin
+Description=Download Docker Compose CLI plugin with checksum verification
 After=network-online.target
 Wants=network-online.target
 
@@ -97,8 +97,18 @@ RemainAfterExit=yes
 User=root
 Group=0
 ExecStartPre=/usr/bin/mkdir -p /usr/local/lib/docker/cli-plugins
-ExecStart=/usr/bin/curl -SL "https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-aarch64" -o /usr/local/lib/docker/cli-plugins/docker-compose
-ExecStartPost=/usr/bin/chmod +x /usr/local/lib/docker/cli-plugins/docker-compose`,
+# Download docker-compose binary
+ExecStart=/usr/bin/curl -SL "https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-aarch64" -o /tmp/docker-compose
+# Download checksum file
+ExecStart=/usr/bin/curl -SL "https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-aarch64.sha256" -o /tmp/docker-compose.sha256
+# Verify checksum (fails if mismatch)
+ExecStart=/usr/bin/bash -c 'cd /tmp && sha256sum -c docker-compose.sha256'
+# Move verified binary to final location
+ExecStart=/usr/bin/mv /tmp/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
+# Make executable
+ExecStartPost=/usr/bin/chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+# Cleanup
+ExecStartPost=/usr/bin/rm -f /tmp/docker-compose.sha256`,
                     },
                     {
                         name: "start-services.service",
@@ -134,18 +144,30 @@ WantedBy=multi-user.target`,
             name: process.env.NETWORK_NAME || "cdktf-network",
         });
 
-        new ComputeFirewall(this, "AllowSSH", {
-            name: "allow-ssh",
-            network: network.name,
-            allow: [
-                {
-                    protocol: "tcp",
-                    ports: ["22"],
-                },
-            ],
-            sourceRanges: ["0.0.0.0/0"],
-            targetTags: ["web"],
-        });
+        // Restrict SSH access to specific IP ranges for security
+        // Set ALLOWED_SSH_CIDR environment variable to your IP (e.g., "1.2.3.4/32")
+        const allowedSshCidr = process.env.ALLOWED_SSH_CIDR;
+
+        if (!allowedSshCidr) {
+            console.warn("WARNING: ALLOWED_SSH_CIDR not set. SSH access will be disabled.");
+            console.warn("Set ALLOWED_SSH_CIDR=your.ip.address/32 to enable SSH access");
+        }
+
+        if (allowedSshCidr) {
+            new ComputeFirewall(this, "AllowSSH", {
+                name: "allow-ssh-restricted",
+                network: network.name,
+                allow: [
+                    {
+                        protocol: "tcp",
+                        ports: ["22"],
+                    },
+                ],
+                sourceRanges: allowedSshCidr.split(",").map(cidr => cidr.trim()),
+                targetTags: ["xxx-ssh-access"],
+                description: "Restricted SSH access from admin IPs only",
+            });
+        }
 
         const servicePorts = [
             // process.env.CONTAINER_API_PORT || "3001",
@@ -154,8 +176,19 @@ WantedBy=multi-user.target`,
             // process.env.REGISTRY_PORT || "5001",
         ];
 
+        // Restrict API access to specific IP ranges for security
+        // Set ALLOWED_API_CIDR environment variable to allowed IPs (comma-separated)
+        // Example: ALLOWED_API_CIDR="1.2.3.4/32,5.6.7.8/24"
+        const allowedApiCidr = process.env.ALLOWED_API_CIDR;
+
+        if (!allowedApiCidr) {
+            console.warn("WARNING: ALLOWED_API_CIDR not set. API will be publicly accessible!");
+            console.warn("This is a CRITICAL security risk. Set ALLOWED_API_CIDR to restrict access.");
+            console.warn("To allow from anywhere (NOT RECOMMENDED): ALLOWED_API_CIDR=0.0.0.0/0");
+        }
+
         new ComputeFirewall(this, "AllowServices", {
-            name: "allow-services",
+            name: "allow-services-restricted",
             network: network.name,
             allow: [
                 {
@@ -163,8 +196,11 @@ WantedBy=multi-user.target`,
                     ports: servicePorts,
                 },
             ],
-            sourceRanges: ["0.0.0.0/0"],
-            targetTags: ["web"],
+            sourceRanges: allowedApiCidr
+                ? allowedApiCidr.split(",").map(cidr => cidr.trim())
+                : ["0.0.0.0/0"], // Fallback, but warn user above
+            targetTags: ["xxx-api-access"],
+            description: "Restricted API access - configure ALLOWED_API_CIDR for security",
         });
 
         const instance = new ComputeInstance(this, "ComputeInstance", {
@@ -191,7 +227,7 @@ WantedBy=multi-user.target`,
                 },
             ],
 
-            tags: ["web", "dev"],
+            tags: ["xxx-ssh-access", "xxx-api-access", "xxx-repl-v1"],
 
             metadata: {
                 "user-data": JSON.stringify(ignitionConfig),
