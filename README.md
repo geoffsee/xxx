@@ -139,20 +139,11 @@ This will:
 #### Using the CLI
 
 ```bash
-cargo run -p cli -- repl execute \
-  --language python \
-  --api-url http://localhost:3002 \
-  --code "for i in range(10): print(f'Hello from Python! Line {i}')"
-```
-
-#### With Streaming Output
-
-```bash
-cargo run -p cli -- repl execute \
-  --language python \
-  --api-url http://localhost:3002 \
-  --streaming \
-  --code "import time; [print(f'Tick {i}') or time.sleep(0.5) for i in range(5)]"
+  cargo run -p cli -- repl execute \
+    --language python \
+    --api-url https://localhost:3002 \
+    --tls self-signed \
+    --code "for i in range(10): print(f'Hello from Python! Line {i}')"
 ```
 
 ---
@@ -169,6 +160,7 @@ cargo run -p cli -- repl execute \
 | **coreos** | 8085 | Fedora CoreOS container exposing Podman HTTP API |
 | **coreos-etcd** | 2379/2380 | Distributed key-value store for service registry |
 | **registry** | 5001 | Local Docker registry for fast image pulls |
+| **supervisor** | 3004 | Aggregates service-registry data and probes health |
 
 ### Component Details
 
@@ -203,6 +195,12 @@ cargo run -p cli -- repl execute \
 ---
 
 ## API Reference
+
+#### **supervisor**
+- Aggregates registered services from `service-registry`
+- Performs lightweight HTTP health checks where defined
+- Exposes a status endpoint for overall system health
+- Registers itself via `register_service!` like other services
 
 ### repl-api
 
@@ -295,6 +293,42 @@ List all registered services.
 
 #### `GET /api/registry/services/{name}`
 Get instances of a specific service.
+
+### supervisor
+
+#### `GET /health`
+Service liveness check.
+
+#### `GET /api/supervisor/status`
+Return a summary of registered services and basic health probes (when available).
+
+Example response:
+```
+{
+  "services": [
+    {
+      "name": "container-api",
+      "id": "container-api-abc123",
+      "address": "container-api",
+      "port": 3000,
+      "registered": true,
+      "http_health": true,
+      "health_endpoint": "http://container-api:3000/healthz",
+      "notes": null
+    },
+    {
+      "name": "repl-api",
+      "id": "repl-api-def456",
+      "address": "repl-api",
+      "port": 3000,
+      "registered": true,
+      "http_health": true,
+      "health_endpoint": "https://repl-api:3000/api/repl/languages",
+      "notes": "probed languages endpoint over self-signed TLS"
+    }
+  ]
+}
+```
 
 ---
 

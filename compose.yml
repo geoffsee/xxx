@@ -163,6 +163,30 @@ services:
         reservations:
           cpus: "0.25"
           memory: 512m
+
+  supervisor:
+    image: ghcr.io/geoffsee/supervisor:stable
+    build:
+      dockerfile: crates/supervisor/Dockerfile
+      context: .
+    container_name: supervisor
+    environment:
+      - SERVICE_REGISTRY_URL=http://service-registry:3003
+    ports:
+      - "3004:3000"
+    networks:
+      - coreos-net
+    depends_on:
+      - service-registry
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 512m
+        reservations:
+          cpus: "0.1"
+          memory: 256m
 volumes:
   etcd-data:
   sandbox-data:

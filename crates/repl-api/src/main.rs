@@ -6,7 +6,6 @@ use axum::{
 };
 use service_registry::register_service;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use axum_server::tls_rustls::RustlsConfig;
 use crate::tls::make_cert;
 
@@ -32,9 +31,9 @@ async fn main() {
         .expect("failed to build RustlsConfig from cert data");
 
     // Bind HTTPS on port 3001
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     println!("repl-api listening securely on https://{}", addr);
-    let (service, _lease_id) = register_service!("repl-api", "repl-api", 3000).await;
+    let (service, _lease_id) = register_service!("repl-api", "repl-api", 3001).await;
     tracing::info!("Service registered: {} ({})", service.name, service.id);
     axum_server::bind_rustls(addr, tls_config)
         .serve(app.into_make_service())

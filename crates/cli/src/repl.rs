@@ -52,10 +52,21 @@ pub struct ReplClient {
 
 impl ReplClient {
     pub fn new(base_url: String) -> Self {
-        Self {
-            base_url,
-            client: reqwest::Client::new(),
-        }
+        Self::with_tls(base_url, super::TlsMode::None)
+    }
+
+    pub fn with_tls(base_url: String, tls_mode: super::TlsMode) -> Self {
+        let client = match tls_mode {
+            super::TlsMode::None => reqwest::Client::new(),
+            super::TlsMode::SelfSigned => {
+                reqwest::Client::builder()
+                    .danger_accept_invalid_certs(true)
+                    .build()
+                    .expect("Failed to build HTTP client with self-signed cert support")
+            }
+        };
+
+        Self { base_url, client }
     }
 
     pub async fn list_languages(&self) -> Result<Vec<String>> {

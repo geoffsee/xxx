@@ -1,0 +1,18 @@
+[package]
+name = "supervisor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["trace"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+service-registry = { path = "../service-registry" }
+service-registry-macros = { path = "../service-registry-macros" }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+anyhow = "1.0"
+

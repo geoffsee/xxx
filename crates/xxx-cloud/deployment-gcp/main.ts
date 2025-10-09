@@ -32,7 +32,7 @@ class MyStack extends TerraformStack {
         const publicKey = fs.readFileSync(`${sshKeyPath}.pub`, "utf-8").trim();
 
         // Read vm_assets files
-        const vmAssetsDir = path.join(__dirname, "google", "vm_assets");
+        const vmAssetsDir = path.join(__dirname, "vm_assets");
 
         const composeYml = fs.readFileSync(
             path.join(vmAssetsDir, "compose.yml"),

@@ -1,9 +1,7 @@
-pub mod container;
-pub mod repl;
-
 use clap::{Parser, Subcommand};
-use container::ContainerClient;
-use repl::{Language, ReplClient};
+use cli::container::ContainerClient;
+use cli::repl::{Language, ReplClient};
+use cli::TlsMode;
 
 #[derive(Parser)]
 #[command(name = "xxx-cli")]
@@ -34,6 +32,9 @@ enum ContainerCommands {
         /// Container API URL
         #[arg(long, default_value = "http://localhost:3000")]
         api_url: String,
+        /// TLS mode (none or self-signed)
+        #[arg(long, value_enum, default_value = "none")]
+        tls: TlsMode,
     },
     /// Create and start a new container
     Create {
@@ -46,6 +47,9 @@ enum ContainerCommands {
         /// Container API URL
         #[arg(long, default_value = "http://localhost:3000")]
         api_url: String,
+        /// TLS mode (none or self-signed)
+        #[arg(long, value_enum, default_value = "none")]
+        tls: TlsMode,
     },
     /// Remove a container
     Remove {
@@ -55,6 +59,9 @@ enum ContainerCommands {
         /// Container API URL
         #[arg(long, default_value = "http://localhost:3000")]
         api_url: String,
+        /// TLS mode (none or self-signed)
+        #[arg(long, value_enum, default_value = "none")]
+        tls: TlsMode,
     },
 }
 
@@ -65,6 +72,9 @@ enum ReplCommands {
         /// REPL API URL
         #[arg(long, default_value = "http://localhost:3001")]
         api_url: String,
+        /// TLS mode (none or self-signed)
+        #[arg(long, value_enum, default_value = "none")]
+        tls: TlsMode,
     },
     /// Execute code in a REPL
     Execute {
@@ -80,6 +90,9 @@ enum ReplCommands {
         /// REPL API URL
         #[arg(long, default_value = "http://localhost:3001")]
         api_url: String,
+        /// TLS mode (none or self-signed)
+        #[arg(long, value_enum, default_value = "none")]
+        tls: TlsMode,
     },
 }
 
@@ -89,8 +102,8 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Container { command } => match command {
-            ContainerCommands::List { api_url } => {
-                let client = ContainerClient::new(api_url);
+            ContainerCommands::List { api_url, tls } => {
+                let client = ContainerClient::with_tls(api_url, tls);
                 let containers = client.list_containers().await?;
 
                 if containers.is_empty() {
@@ -106,8 +119,9 @@ async fn main() -> anyhow::Result<()> {
                 image,
                 command,
                 api_url,
+                tls,
             } => {
-                let client = ContainerClient::new(api_url);
+                let client = ContainerClient::with_tls(api_url, tls);
                 println!("Creating container with image: {}", image);
                 if let Some(ref cmd) = command {
                     println!("Command: {}", cmd.join(" "));
@@ -117,8 +131,8 @@ async fn main() -> anyhow::Result<()> {
                 println!("✓ {}", response.message);
                 println!("Container ID: {}", response.id);
             }
-            ContainerCommands::Remove { id, api_url } => {
-                let client = ContainerClient::new(api_url);
+            ContainerCommands::Remove { id, api_url, tls } => {
+                let client = ContainerClient::with_tls(api_url, tls);
                 println!("Removing container: {}", id);
 
                 let response = client.remove_container(id).await?;
@@ -126,8 +140,8 @@ async fn main() -> anyhow::Result<()> {
             }
         },
         Commands::Repl { command } => match command {
-            ReplCommands::Languages { api_url } => {
-                let client = ReplClient::new(api_url);
+            ReplCommands::Languages { api_url, tls } => {
+                let client = ReplClient::with_tls(api_url, tls);
                 let languages = client.list_languages().await?;
 
                 println!("Available languages:");
@@ -140,8 +154,9 @@ async fn main() -> anyhow::Result<()> {
                 code,
                 dependencies,
                 api_url,
+                tls,
             } => {
-                let client = ReplClient::new(api_url);
+                let client = ReplClient::with_tls(api_url, tls);
                 let lang: Language = language.parse()?;
 
                 if !dependencies.is_empty() {
